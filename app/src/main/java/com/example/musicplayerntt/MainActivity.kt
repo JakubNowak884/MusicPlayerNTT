@@ -9,57 +9,48 @@ import android.widget.Button
 import java.io.File
 import java.io.IOException
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
-
 import androidx.core.app.ActivityCompat
-
 import android.content.pm.PackageManager
-
 import androidx.core.content.ContextCompat
-import android.content.DialogInterface
-import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.bluetooth.BluetoothSocket
-
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.os.*
 import android.content.ContentValues.TAG
 import android.util.Log
+import android.widget.Toast
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
 import kotlin.collections.ArrayList
 
-
 class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
 
-    private var newFileActivityRequestCode = 1
+    private var length = 0
+    private var playerReady = false
+
+    private var songTitle: TextView? = null
+    private var songLength: TextView? = null
+    private var songProgress: ProgressBar? = null
+    private var deviceName: TextView? = null
+    private var deviceStatus: TextView? = null
 
     private var mMediaPlayer: MediaPlayer? = null
-    private var pathToCurrentSong: String? = null
-    private var playerReady = false
-    private var allFiles: List<File> = emptyList<File>()
-    private lateinit var songTitle: TextView
-    private lateinit var songLength: TextView
-    private lateinit var songProgress: ProgressBar
-    private var length = 0
+    private var songLengthThread: SongLengthThread? = null
 
-    private var deviceName: String? = null
-    private var deviceAddress: String? = null
     var handler: Handler? = null
     var mmSocket: BluetoothSocket? = null
     var connectedThread: ConnectedThread? = null
-    var createConnectThread: CreateConnectThread? = null
+    private var createConnectThread: CreateConnectThread? = null
     private var bluetoothAdapter: BluetoothAdapter? = null
+    private val connectingStatus = 1 // used in bluetooth handler to identify message status
+    private val messageRead = 2 // used in bluetooth handler to identify message update
 
-    private val CONNECTING_STATUS = 1 // used in bluetooth handler to identify message status
-
-    private val MESSAGE_READ = 2 // used in bluetooth handler to identify message update
-
-    val MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 123
+    private var songRequestCode = 0
+    private var bluetoothDeviceRequestCode = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,25 +58,59 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
 
         songTitle = findViewById(R.id.songTitle)
         songProgress = findViewById(R.id.songProgressBar)
-        songLength = findViewById(R.id.t_length)
+        songLength = findViewById(R.id.songLength)
+        deviceName = findViewById(R.id.deviceName)
+        deviceStatus = findViewById(R.id.deviceStatus)
+
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = bluetoothManager.adapter
 
         val bLoad: Button = findViewById(R.id.b_load)
         bLoad.setOnClickListener {
             ActivityCompat.requestPermissions((this as Activity?)!!, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 0)
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                 val musicDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                var allFiles = musicDirectory.listFiles().toMutableList()
-                allFiles.removeAll(predicate = { file: File -> !file.name.endsWith(".mp3") })
-                val listOfNames : ArrayList<String> = ArrayList()
-                val listOfAddresses : ArrayList<String> = ArrayList()
-                for (file in allFiles) {
-                    listOfNames.add(file.name)
-                    listOfAddresses.add(file.absolutePath)
+                val allFiles = musicDirectory.listFiles()
+                if (allFiles != null && allFiles.isNotEmpty()) {
+                    val listOfMP3Files = allFiles.toMutableList()
+                    listOfMP3Files.removeAll(predicate = { file: File -> !file.name.endsWith(".mp3") })
+                    val listOfNames : ArrayList<String> = ArrayList()
+                    val listOfAddresses : ArrayList<String> = ArrayList()
+                    for (file in allFiles) {
+                        listOfNames.add(file.name)
+                        listOfAddresses.add(file.absolutePath)
+                    }
+                    val intent = Intent(this, ListActivity::class.java)
+                    intent.putStringArrayListExtra("listOfNames", listOfNames)
+                    intent.putStringArrayListExtra("listOfAddresses", listOfAddresses)
+                    startActivityForResult(intent, songRequestCode)
                 }
-                val intent = Intent(this, ListActivity::class.java)
-                intent.putStringArrayListExtra("listOfNames", listOfNames)
-                intent.putStringArrayListExtra("listOfAddresses", listOfAddresses)
-                startActivityForResult(intent, newFileActivityRequestCode)
+                else {
+                    Toast.makeText(this, "The are no .mp3 files in your music directory.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val bSelect: Button = findViewById(R.id.b_select)
+        bSelect.setOnClickListener {
+            ActivityCompat.requestPermissions((this as Activity?)!!, arrayOf(Manifest.permission.BLUETOOTH), 0)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                val pairedDevices = bluetoothAdapter?.bondedDevices
+                if (pairedDevices != null && pairedDevices.isNotEmpty()) {
+                    val listOfNames : ArrayList<String> = ArrayList()
+                    val listOfAddresses : ArrayList<String> = ArrayList()
+                    for (device in pairedDevices) {
+                        listOfNames.add(device.name)
+                        listOfAddresses.add(device.address)
+                    }
+                    val intent = Intent(this, ListActivity::class.java)
+                    intent.putStringArrayListExtra("listOfNames", listOfNames)
+                    intent.putStringArrayListExtra("listOfAddresses", listOfAddresses)
+                    startActivityForResult(intent, bluetoothDeviceRequestCode)
+                }
+                else {
+                    Toast.makeText(this, "The are no paired devices.", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
@@ -93,51 +118,39 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
         bPlay.setOnClickListener {
             if (playerReady)
             {
-                mMediaPlayer?.seekTo(length);
+                mMediaPlayer?.seekTo(length)
                 mMediaPlayer?.start()
                 playerReady = false
             }
             else
             {
-                length= mMediaPlayer?.currentPosition!!;
+                length = mMediaPlayer?.currentPosition!!
                 mMediaPlayer?.stop()
                 mMediaPlayer?.prepareAsync()
             }
         }
-
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
 
         /*
         Second most important piece of Code. GUI Handler
          */
 
         handler = object : Handler(Looper.getMainLooper()) {
-            val bConnect: Button = findViewById(R.id.b_connect)
-            val tStatus: TextView = findViewById(R.id.t_status)
             override fun handleMessage(msg: Message) {
                 when (msg.what) {
-                    CONNECTING_STATUS -> when (msg.arg1) {
-                        1 -> {
-                            tStatus.text = "Status: connected to " + deviceName
-                            bConnect.isEnabled = true
-                        }
-                        -1 -> {
-                            tStatus.text = "Status: disconnected"
-                            bConnect.isEnabled = true
-                        }
+                    connectingStatus -> when (msg.arg1) {
+                        1 -> deviceStatus?.text = getString(R.string.connected)
+                        -1 -> deviceStatus?.text = getString(R.string.disconnected)
                     }
-                    MESSAGE_READ -> {
+                    messageRead -> {
                         val arduinoMsg: String = msg.obj.toString() // Read message from Arduino
-                        println("Message received")
-                        when (arduinoMsg.toLowerCase()) {
+                        when (arduinoMsg.lowercase(Locale.getDefault())) {
                             "start" -> {
-                                mMediaPlayer?.seekTo(length);
+                                mMediaPlayer?.seekTo(length)
                                 mMediaPlayer?.start()
                                 playerReady = false
                             }
                             "stop" -> {
-                                length= mMediaPlayer?.currentPosition!!;
+                                length = mMediaPlayer?.currentPosition!!
                                 mMediaPlayer?.stop()
                                 mMediaPlayer?.prepareAsync()
                             }
@@ -146,101 +159,108 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                 }
             }
         }
-
-        // Select Bluetooth Device
-        val bConnect: Button = findViewById(R.id.b_connect)
-        // Select Bluetooth Device
-        bConnect.setOnClickListener { // Move to adapter list
-
-            // Get List of Paired Bluetooth Device
-            if (checkPermissionREAD_EXTERNAL_STORAGE(this)) {
-                val pairedDevices = bluetoothAdapter?.bondedDevices
-                deviceName = pairedDevices?.first()?.name
-                deviceAddress = pairedDevices?.first()?.address
-                val tStatus: TextView = findViewById(R.id.t_status)
-                tStatus.text = "Status: disconnected " + deviceName
-                if (deviceName != null) {
-                    /*
-                    This is the most important piece of code. When "deviceName" is found
-                    the code will call a new thread to create a bluetooth connection to the
-                    selected device (see the thread code below)
-                     */
-
-                    createConnectThread = CreateConnectThread(bluetoothAdapter!!, deviceAddress)
-                    createConnectThread!!.start()
-                    val tStatus: TextView = findViewById(R.id.t_status)
-                    tStatus.text = "Status: connecting to... " + deviceName
-                }
-            }
-        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, intentData: Intent?) {
         super.onActivityResult(requestCode, resultCode, intentData)
 
-        /* Inserts flower into viewModel. */
-        if (requestCode == newFileActivityRequestCode && resultCode == Activity.RESULT_OK) {
-            intentData?.let { data ->
-                val absolutePath = data.getStringExtra("absolutePath")
-                val name = data.getStringExtra("name")
+        if (resultCode == Activity.RESULT_OK) {
+            when (requestCode) {
+                songRequestCode ->  {
+                    intentData?.let { data ->
+                        val path = data.getStringExtra("address")
+                        val name = data.getStringExtra("name")
 
-                mMediaPlayer = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .build()
-                    )
+                        mMediaPlayer = MediaPlayer().apply {
+                            setAudioAttributes(
+                                AudioAttributes.Builder()
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                                    .build()
+                            )
+                        }
+                        mMediaPlayer?.setDataSource(path)
+                        mMediaPlayer?.apply {
+                            setOnPreparedListener(this@MainActivity)
+                            prepareAsync()
+                        }
+
+                        songTitle?.text = name
+                        val songLengthText = "0:00 - " + mMediaPlayer?.duration.toString()
+                        songLength?.text = songLengthText
+
+                        songLengthThread = SongLengthThread(mMediaPlayer!!)
+                        songLengthThread!!.start()
+                    }
                 }
 
-                val musicDirectory =
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
-                allFiles = musicDirectory.listFiles().toList()
-                mMediaPlayer?.setDataSource(absolutePath)
+                bluetoothDeviceRequestCode ->  {
+                    intentData?.let { data ->
+                        val address = data.getStringExtra("address")
+                        val name = data.getStringExtra("name")
 
-                mMediaPlayer?.apply {
-                    setOnPreparedListener(this@MainActivity)
-                    prepareAsync() // prepare async to not block main thread
+                        createConnectThread = CreateConnectThread(bluetoothAdapter!!, address)
+                        createConnectThread!!.start()
+
+                        deviceStatus?.text = getString(R.string.connecting)
+
+                        val deviceNameText = "Name: $name"
+                        deviceName?.text = deviceNameText
+                    }
                 }
-
-                songTitle.text = name
-                songLength.text = "0:00 - " + mMediaPlayer?.duration.toString()
             }
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        createConnectThread?.cancel()
+    }
+
     override fun onPrepared(mediaPlayer: MediaPlayer) {
-        playerReady = true;
-        songProgress.max = mediaPlayer.duration
-        songProgress.progress = mediaPlayer.currentPosition
-        songLength.text = mediaPlayer.currentPosition.toString() + " - " + mMediaPlayer?.duration.toString()
+        playerReady = true
+    }
+
+    inner class SongLengthThread(_mediaPlayer: MediaPlayer) : Thread() {
+
+        override fun run() {
+            while (true) {
+                songProgress?.max = mMediaPlayer?.duration!!
+                songProgress?.progress = mMediaPlayer?.currentPosition!!
+                val songLengthText = mMediaPlayer?.currentPosition.toString() + " - " + mMediaPlayer?.duration.toString()
+                songLength?.text = songLengthText
+            }
+        }
+
     }
 
     inner class CreateConnectThread(bluetoothAdapter: BluetoothAdapter, address: String?) :
         Thread() {
         override fun run() {
-            try {
-                // Connect to the remote device through the socket. This call blocks
-                // until it succeeds or throws an exception.
-                mmSocket?.connect()
-                Log.e("Status", "Device connected")
-                handler?.obtainMessage(CONNECTING_STATUS, 1, -1)?.sendToTarget()
-            } catch (connectException: IOException) {
-                // Unable to connect; close the socket and return.
+            ActivityCompat.requestPermissions((this@MainActivity as Activity?)!!, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 0)
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                 try {
-                    mmSocket?.close()
-                    Log.e("Status", "Cannot connect to device")
-                    handler?.obtainMessage(CONNECTING_STATUS, -1, -1)?.sendToTarget()
-                } catch (closeException: IOException) {
-                    Log.e(TAG, "Could not close the client socket", closeException)
+                    // Connect to the remote device through the socket. This call blocks
+                    // until it succeeds or throws an exception.
+                    mmSocket?.connect()
+                    handler?.obtainMessage(connectingStatus, 1, -1)?.sendToTarget()
+                } catch (connectException: IOException) {
+                    // Unable to connect; close the socket and return.
+                    try {
+                        mmSocket?.close()
+                        Log.e("Status", "Cannot connect to device")
+                        handler?.obtainMessage(connectingStatus, -1, -1)?.sendToTarget()
+                    } catch (closeException: IOException) {
+                        Log.e(TAG, "Could not close the client socket", closeException)
+                    }
+                    return
                 }
-                return
-            }
 
-            // The connection attempt succeeded. Perform work associated with
-            // the connection in a separate thread.
-            connectedThread = mmSocket?.let { ConnectedThread(it) }
-            connectedThread!!.run()
+                // The connection attempt succeeded. Perform work associated with
+                // the connection in a separate thread.
+                connectedThread = mmSocket?.let { ConnectedThread(it) }
+                connectedThread!!.run()
+            }
         }
 
         // Closes the client socket and causes the thread to finish.
@@ -253,31 +273,34 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
         }
 
         init {
-            /*
+            ActivityCompat.requestPermissions((this@MainActivity as Activity?)!!, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 0)
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                /*
                 Use a temporary object that is later assigned to mmSocket
                 because mmSocket is final.
                  */
-            val bluetoothDevice = bluetoothAdapter?.bondedDevices.first()
-            var tmp: BluetoothSocket? = null
-            val uuid: UUID = bluetoothDevice.uuids[0].uuid
-            try {
-                /*
+                val bluetoothDevice = bluetoothAdapter.getRemoteDevice(address)
+                var tmp: BluetoothSocket? = null
+                val uuid: UUID = bluetoothDevice.uuids[0].uuid
+                try {
+                    /*
                     Get a BluetoothSocket to connect with the given BluetoothDevice.
                     Due to Android device varieties,the method below may not work fo different devices.
                     You should try using other methods i.e. :
                     tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
                      */
-                tmp = bluetoothDevice.createInsecureRfcommSocketToServiceRecord(uuid)
-            } catch (e: IOException) {
-                Log.e(TAG, "Socket's create() method failed", e)
-            }
-            if (tmp != null) {
-                mmSocket = tmp
+                    tmp = bluetoothDevice.createInsecureRfcommSocketToServiceRecord(uuid)
+                } catch (e: IOException) {
+                    Log.e(TAG, "Socket's create() method failed", e)
+                }
+                if (tmp != null) {
+                    mmSocket = tmp
+                }
             }
         }
     }
 
-    inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
+    inner class ConnectedThread(mmSocket: BluetoothSocket) : Thread() {
         private val mmInStream: InputStream?
         private val mmOutStream: OutputStream?
         override fun run() {
@@ -290,12 +313,12 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                         Read from the InputStream from Arduino until termination character is reached.
                         Then send the whole String message to GUI Handler.
                          */
-                    buffer[bytes] = mmInStream?.read()!!?.toByte()
+                    buffer[bytes] = mmInStream?.read()!!.toByte()
                     var readMessage: String
                     if (buffer[bytes] == '\n'.code.toByte()) {
                         readMessage = String(buffer, 0, bytes)
                         Log.e("Arduino Message", readMessage)
-                        handler?.obtainMessage(MESSAGE_READ, readMessage)?.sendToTarget()
+                        handler?.obtainMessage(messageRead, readMessage)?.sendToTarget()
                         bytes = 0
                     } else {
                         bytes++
@@ -304,24 +327,6 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                     e.printStackTrace()
                     break
                 }
-            }
-        }
-
-        /* Call this from the main activity to send data to the remote device */
-        fun write(input: String) {
-            val bytes = input.toByteArray() //converts entered String into bytes
-            try {
-                mmOutStream?.write(bytes)
-            } catch (e: IOException) {
-                Log.e("Send Error", "Unable to send message", e)
-            }
-        }
-
-        /* Call this from the main activity to shutdown the connection */
-        fun cancel() {
-            try {
-                mmSocket.close()
-            } catch (e: IOException) {
             }
         }
 
@@ -339,63 +344,6 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
             mmInStream = tmpIn
             mmOutStream = tmpOut
         }
-    }
-
-    private fun checkPermissionREAD_EXTERNAL_STORAGE(
-        context: Context?
-    ): Boolean {
-        val currentAPIVersion = Build.VERSION.SDK_INT
-        return if (currentAPIVersion >= Build.VERSION_CODES.M) {
-            if (context?.let {
-                    ContextCompat.checkSelfPermission(
-                        it,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    )
-                } != PackageManager.PERMISSION_GRANTED
-            ) {
-                if (ActivityCompat.shouldShowRequestPermissionRationale(
-                        (context as Activity?)!!,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    )
-                ) {
-                    showDialog(
-                        "External storage", context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    )
-                } else {
-                    ActivityCompat
-                        .requestPermissions(
-                            (context as Activity?)!!,
-                            arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                            MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE
-                        )
-                }
-                false
-            } else {
-                true
-            }
-        } else {
-            true
-        }
-    }
-
-    private fun showDialog(
-        msg: String, context: Context?,
-        permission: String
-    ) {
-        val alertBuilder: AlertDialog.Builder = AlertDialog.Builder(context)
-        alertBuilder.setCancelable(true)
-        alertBuilder.setTitle("Permission necessary")
-        alertBuilder.setMessage("$msg permission is necessary")
-        alertBuilder.setPositiveButton(android.R.string.yes,
-            DialogInterface.OnClickListener { dialog, which ->
-                ActivityCompat.requestPermissions(
-                    (context as Activity?)!!, arrayOf(permission),
-                    MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE
-                )
-            })
-        val alert: AlertDialog = alertBuilder.create()
-        alert.show()
     }
 }
 

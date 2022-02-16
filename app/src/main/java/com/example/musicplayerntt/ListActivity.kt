@@ -20,7 +20,7 @@ class ListActivity : AppCompatActivity()  {
     private var adapter: CustomAdapter? = null
 
     /**
-     * List of items for recycler view..
+     * List of items for recycler view.
      */
     private var listOfNamesAndAddresses: RecyclerView? = null
 
@@ -36,13 +36,13 @@ class ListActivity : AppCompatActivity()  {
         val listOfNames = intent.getStringArrayListExtra("listOfNames")
         val listOfAddresses = intent.getStringArrayListExtra("listOfAddresses")
 
-        val namesAndPaths = ArrayList<Pair<String, String>>()
+        val namesAndAddresses = ArrayList<Pair<String, String>>()
         for(i in listOfNames!!.indices) {
-            namesAndPaths.add(Pair(listOfNames[i], listOfAddresses!![i]))
+            namesAndAddresses.add(Pair(listOfNames[i], listOfAddresses!![i]))
         }
 
         adapter = CustomAdapter { name -> adapterOnClick(name) }
-        adapter?.submitList(namesAndPaths)
+        adapter?.submitList(namesAndAddresses)
 
         listOfNamesAndAddresses = findViewById(R.id.recyclerView)
         listOfNamesAndAddresses?.layoutManager = LinearLayoutManager(this)
@@ -51,12 +51,13 @@ class ListActivity : AppCompatActivity()  {
 
     /**
      * Listens if item from recycler view has been clicked.
-     * @param nameAndPath object which name has been clicked.
+     *
+     * @param nameAndAddress object which name has been clicked.
      */
-    private fun adapterOnClick(nameAndPath: Pair<String, String>) {
+    private fun adapterOnClick(nameAndAddress: Pair<String, String>) {
         val intent = Intent(this, MainActivity()::class.java)
-        intent.putExtra("name", nameAndPath.first)
-        intent.putExtra("absolutePath", nameAndPath.second)
+        intent.putExtra("name", nameAndAddress.first)
+        intent.putExtra("address", nameAndAddress.second)
         setResult(Activity.RESULT_OK, intent)
         finish()
     }

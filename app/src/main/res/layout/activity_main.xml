@@ -4,33 +4,47 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#D3D3D3"
     tools:context=".MainActivity">
 
     <TextView
-        android:id="@+id/t_status"
+        android:id="@+id/deviceStatus"
         android:layout_width="354dp"
         android:layout_height="47dp"
         android:text="Status: disconnected"
         android:textSize="24sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.507"
+        app:layout_constraintHorizontal_bias="0.28"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.05" />
+        app:layout_constraintVertical_bias="0.092" />
 
     <TextView
-        android:id="@+id/t_length"
+        android:id="@+id/deviceName"
+        android:layout_width="354dp"
+        android:layout_height="47dp"
+        android:text="Name: non device selected"
+        android:textSize="24sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.28"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.023" />
+
+    <TextView
+        android:id="@+id/songLength"
         android:layout_width="156dp"
         android:layout_height="27dp"
         android:text="0:00 - 0:00"
         android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.27"
+        app:layout_constraintHorizontal_bias="0.274"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.813" />
+        app:layout_constraintVertical_bias="0.845" />
 
     <Button
         android:id="@+id/b_play"
@@ -41,7 +55,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.496"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/t_status"
+        app:layout_constraintTop_toBottomOf="@+id/deviceStatus"
         app:layout_constraintVertical_bias="0.575" />
 
     <Button
@@ -53,7 +67,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.504"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/t_status"
+        app:layout_constraintTop_toBottomOf="@+id/deviceStatus"
         app:layout_constraintVertical_bias="0.933" />
 
     <ProgressBar
@@ -63,10 +77,10 @@
         android:layout_height="37dp"
         app:layout_constraintBottom_toTopOf="@+id/b_load"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.496"
+        app:layout_constraintHorizontal_bias="0.51"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/b_play"
-        app:layout_constraintVertical_bias="0.477" />
+        app:layout_constraintVertical_bias="0.328" />
 
     <TextView
         android:id="@+id/songTitle"
@@ -77,18 +91,20 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/b_play"
-        app:layout_constraintVertical_bias="1.0" />
+        app:layout_constraintVertical_bias="0.0" />
 
     <Button
-        android:id="@+id/b_connect"
-        android:layout_width="168dp"
-        android:layout_height="65dp"
-        android:text="connect"
-        app:layout_constraintBottom_toTopOf="@+id/b_play"
+        android:id="@+id/b_select"
+        android:layout_width="255dp"
+        android:layout_height="66dp"
+        android:layout_marginStart="39dp"
+        android:layout_marginEnd="215dp"
+        android:text="Select device"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.119"
+        app:layout_constraintHorizontal_bias="0.234"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/t_status"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.165" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
