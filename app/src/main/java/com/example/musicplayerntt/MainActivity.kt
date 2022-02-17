@@ -1,49 +1,54 @@
 package com.example.musicplayerntt
 
 import android.Manifest
-import android.content.Intent
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import androidx.appcompat.app.AppCompatActivity
-import android.widget.Button
-import java.io.File
-import java.io.IOException
 import android.app.Activity
-import android.content.Context
-import androidx.core.app.ActivityCompat
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import android.widget.ProgressBar
-import android.widget.TextView
-import android.bluetooth.BluetoothSocket
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.os.*
+import android.bluetooth.BluetoothSocket
 import android.content.ContentValues.TAG
+import android.content.Context
+import android.content.DialogInterface
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.os.*
+import android.text.InputType
 import android.util.Log
-import android.widget.Toast
+import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.google.android.youtube.player.YouTubeInitializationResult
+import com.google.android.youtube.player.YouTubePlayer
+import com.google.android.youtube.player.YouTubePlayerSupportFragment
+import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
-import kotlin.collections.ArrayList
 
-class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
+class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
 
-    private var length = 0
-    private var playerReady = false
+    private var musicPlaying = false
+    private var m_Text = ""
 
     private var songTitle: TextView? = null
     private var songLength: TextView? = null
     private var songProgress: ProgressBar? = null
     private var deviceName: TextView? = null
     private var deviceStatus: TextView? = null
+    private var bPlay: ImageButton? = null
 
-    private var mMediaPlayer: MediaPlayer? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var songLengthThread: SongLengthThread? = null
 
-    var handler: Handler? = null
-    var mmSocket: BluetoothSocket? = null
-    var connectedThread: ConnectedThread? = null
+    private var youtubeFragment: YouTubePlayerSupportFragment? = null
+
+    private var handler: Handler? = null
+    private var mmSocket: BluetoothSocket? = null
+    private var connectedThread: ConnectedThread? = null
     private var createConnectThread: CreateConnectThread? = null
     private var bluetoothAdapter: BluetoothAdapter? = null
     private val connectingStatus = 1 // used in bluetooth handler to identify message status
@@ -51,6 +56,8 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
 
     private var songRequestCode = 0
     private var bluetoothDeviceRequestCode = 1
+
+    private var player : YouTubePlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,8 +72,8 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
 
-        val bLoad: Button = findViewById(R.id.b_load)
-        bLoad.setOnClickListener {
+        val bLoadFromFiles: Button = findViewById(R.id.b_load_files)
+        bLoadFromFiles.setOnClickListener {
             ActivityCompat.requestPermissions((this as Activity?)!!, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 0)
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                 val musicDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
@@ -88,6 +95,16 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                 else {
                     Toast.makeText(this, "The are no .mp3 files in your music directory.", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+
+        val bLoadFromYoutube: Button = findViewById(R.id.b_load_youtube)
+        bLoadFromYoutube.setOnClickListener {
+            ActivityCompat.requestPermissions((this as Activity?)!!, arrayOf(Manifest.permission.INTERNET), 0)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
+                @Suppress("CAST_NEVER_SUCCEEDS") //because YouTube SDK doesn't use Androidx.
+                youtubeFragment = supportFragmentManager.findFragmentById(R.id.youtube_fragment) as YouTubePlayerSupportFragment
+                youtubeFragment?.initialize("AIzaSyBXneFQ6WeXoUW_YFvvw_ohNf6yFUQv4bI", this)
             }
         }
 
@@ -114,20 +131,20 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
             }
         }
 
-        val bPlay: Button = findViewById(R.id.b_play)
-        bPlay.setOnClickListener {
-            if (playerReady)
-            {
-                mMediaPlayer?.seekTo(length)
-                mMediaPlayer?.start()
-                playerReady = false
-            }
-            else
-            {
-                length = mMediaPlayer?.currentPosition!!
-                mMediaPlayer?.stop()
-                mMediaPlayer?.prepareAsync()
-            }
+        bPlay = findViewById(R.id.b_play)
+        bPlay?.setOnClickListener {
+            musicPlaying =
+                if (musicPlaying) {
+                    mediaPlayer?.pause()
+                    player?.pause()
+                    bPlay?.setImageResource(R.drawable.play)
+                    false
+                } else {
+                    mediaPlayer?.start()
+                    player?.play()
+                    bPlay?.setImageResource(R.drawable.stop)
+                    true
+                }
         }
 
         /*
@@ -145,14 +162,16 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                         val arduinoMsg: String = msg.obj.toString() // Read message from Arduino
                         when (arduinoMsg.lowercase(Locale.getDefault())) {
                             "start" -> {
-                                mMediaPlayer?.seekTo(length)
-                                mMediaPlayer?.start()
-                                playerReady = false
+                                mediaPlayer?.start()
+                                player?.play()
+                                bPlay?.setImageResource(R.drawable.stop)
+                                musicPlaying = true
                             }
                             "stop" -> {
-                                length = mMediaPlayer?.currentPosition!!
-                                mMediaPlayer?.stop()
-                                mMediaPlayer?.prepareAsync()
+                                mediaPlayer?.pause()
+                                player?.pause()
+                                bPlay?.setImageResource(R.drawable.play)
+                                musicPlaying = false
                             }
                         }
                     }
@@ -171,7 +190,7 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                         val path = data.getStringExtra("address")
                         val name = data.getStringExtra("name")
 
-                        mMediaPlayer = MediaPlayer().apply {
+                        mediaPlayer = MediaPlayer().apply {
                             setAudioAttributes(
                                 AudioAttributes.Builder()
                                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -179,18 +198,18 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                                     .build()
                             )
                         }
-                        mMediaPlayer?.setDataSource(path)
-                        mMediaPlayer?.apply {
-                            setOnPreparedListener(this@MainActivity)
+                        mediaPlayer?.setDataSource(path)
+                        mediaPlayer?.apply {
                             prepareAsync()
                         }
 
                         songTitle?.text = name
-                        val songLengthText = "0:00 - " + mMediaPlayer?.duration.toString()
-                        songLength?.text = songLengthText
 
-                        songLengthThread = SongLengthThread(mMediaPlayer!!)
+                        songLengthThread = SongLengthThread()
                         songLengthThread!!.start()
+
+                        player?.release()
+                        player = null
                     }
                 }
 
@@ -199,13 +218,12 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
                         val address = data.getStringExtra("address")
                         val name = data.getStringExtra("name")
 
-                        createConnectThread = CreateConnectThread(bluetoothAdapter!!, address)
-                        createConnectThread!!.start()
-
                         deviceStatus?.text = getString(R.string.connecting)
-
                         val deviceNameText = "Name: $name"
                         deviceName?.text = deviceNameText
+
+                        createConnectThread = CreateConnectThread(bluetoothAdapter!!, address)
+                        createConnectThread!!.start()
                     }
                 }
             }
@@ -217,25 +235,113 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
         createConnectThread?.cancel()
     }
 
-    override fun onPrepared(mediaPlayer: MediaPlayer) {
-        playerReady = true
+    override fun onInitializationSuccess(p0: YouTubePlayer.Provider?, p1: YouTubePlayer?, p2: Boolean) {
+        if(p1 == null) return
+        if (p2) {
+            p1.pause()
+            player = p1
+            songTitle?.text = "No song chosen"
+            mediaPlayer = null
+        }
+        else {
+            showdialog()
+            p1.cueVideo(m_Text)
+            p1.setPlayerStyle(YouTubePlayer.PlayerStyle.DEFAULT)
+            p1.pause()
+            player = p1
+            songTitle?.text = "No song chosen"
+            mediaPlayer = null
+        }
     }
 
-    inner class SongLengthThread(_mediaPlayer: MediaPlayer) : Thread() {
+    override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {
+        var a = 5
+    }
 
+    private fun showdialog(){
+        val builder: AlertDialog.Builder = android.app.AlertDialog.Builder(this)
+        builder.setTitle("Title")
+
+// Set up the input
+        val input = EditText(this)
+// Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+        input.setHint("Enter Text")
+        input.inputType = InputType.TYPE_CLASS_TEXT
+        builder.setView(input)
+
+// Set up the buttons
+        builder.setPositiveButton("OK", DialogInterface.OnClickListener { dialog, which ->
+            // Here you get get input text from the Edittext
+            m_Text = input.text.toString()
+        })
+        builder.setNegativeButton("Cancel", DialogInterface.OnClickListener { dialog, which -> dialog.cancel() })
+
+        builder.show()
+    }
+
+    private fun millisecondsToMinutes(totalMilliseconds: Int) : String {
+        val totalSeconds = totalMilliseconds / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
+    private inner class SongLengthThread : Thread() {
         override fun run() {
             while (true) {
-                songProgress?.max = mMediaPlayer?.duration!!
-                songProgress?.progress = mMediaPlayer?.currentPosition!!
-                val songLengthText = mMediaPlayer?.currentPosition.toString() + " - " + mMediaPlayer?.duration.toString()
+                val duration = mediaPlayer?.duration ?: 0
+                val position = mediaPlayer?.currentPosition ?: 0
+                songProgress?.max = duration
+                songProgress?.progress = position
+                val songLengthText = millisecondsToMinutes(position) + " - " + millisecondsToMinutes(duration)
                 songLength?.text = songLengthText
             }
         }
-
     }
 
-    inner class CreateConnectThread(bluetoothAdapter: BluetoothAdapter, address: String?) :
-        Thread() {
+    private inner class YoutubeThread() : Thread(),  YouTubePlayer.OnInitializedListener {
+        var youtubePlayer : YouTubePlayer? = null
+        var bool: Boolean = true
+
+        override fun run() {
+            while (true) {
+                if(youtubePlayer == null) return
+                if (bool) {
+                    try {
+                        sleep(1000)
+                    } catch (e: InterruptedException) {
+                        // Do something here if you need to
+                    }
+                    youtubePlayer?.seekToMillis(10000)
+                    youtubePlayer?.play()
+                }
+                else {
+                    youtubePlayer?.cueVideo("0GXjAMnv1zs")
+                    youtubePlayer?.setPlayerStyle(YouTubePlayer.PlayerStyle.DEFAULT)
+                    try {
+                        sleep(1000)
+                    } catch (e: InterruptedException) {
+                        // Do something here if you need to
+                    }
+                    youtubePlayer?.seekToMillis(10000)
+                    youtubePlayer?.play()
+                }
+            }
+        }
+
+        override fun onInitializationSuccess(p0: YouTubePlayer.Provider?, p1: YouTubePlayer?, p2: Boolean) {
+            youtubePlayer = p1
+            bool = p2
+            run()
+        }
+
+        override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {
+            var a = 5
+        }
+    }
+
+    private inner class CreateConnectThread(bluetoothAdapter: BluetoothAdapter, address: String?) : Thread() {
         override fun run() {
             ActivityCompat.requestPermissions((this@MainActivity as Activity?)!!, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 0)
             if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
@@ -300,7 +406,7 @@ class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener {
         }
     }
 
-    inner class ConnectedThread(mmSocket: BluetoothSocket) : Thread() {
+    private inner class ConnectedThread(mmSocket: BluetoothSocket) : Thread() {
         private val mmInStream: InputStream?
         private val mmOutStream: OutputStream?
         override fun run() {
