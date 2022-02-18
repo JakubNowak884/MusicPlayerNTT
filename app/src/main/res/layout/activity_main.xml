@@ -38,17 +38,15 @@
         android:layout_width="156dp"
         android:layout_height="27dp"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="560dp"
-        android:layout_marginEnd="224dp"
-        android:layout_marginBottom="5dp"
+        android:layout_marginTop="615dp"
+        android:layout_marginEnd="239dp"
+        android:layout_marginBottom="89dp"
         android:text="0:00 - 0:00"
         android:textSize="16sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.2"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.338" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ImageButton
         android:id="@+id/b_play"
@@ -82,35 +80,19 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.36" />
 
-    <ProgressBar
-        android:id="@+id/songProgressBar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="372dp"
-        android:layout_height="32dp"
-        android:layout_marginTop="550dp"
-        android:layout_marginBottom="82dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.487"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.373" />
-
     <TextView
         android:id="@+id/songTitle"
-        android:layout_width="271dp"
-        android:layout_height="22dp"
-        android:layout_marginStart="30dp"
-        android:layout_marginTop="500dp"
-        android:layout_marginEnd="97dp"
-        android:layout_marginBottom="123dp"
+        android:layout_width="283dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="562dp"
+        android:layout_marginEnd="112dp"
+        android:layout_marginBottom="139dp"
         android:textSize="14sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.616" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <Button
         android:id="@+id/b_select"
@@ -145,15 +127,30 @@
     <fragment
         android:id="@+id/youtube_fragment"
         android:name="com.google.android.youtube.player.YouTubePlayerSupportFragment"
-        android:layout_width="411dp"
-        android:layout_height="266dp"
-        android:layout_marginTop="226dp"
-        android:layout_marginBottom="486dp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.202" />
+        app:layout_constraintVertical_bias="0.391" />
+
+    <SeekBar
+        android:id="@+id/songSeekBar"
+        style="@style/Widget.AppCompat.SeekBar.Discrete"
+        android:layout_width="337dp"
+        android:layout_height="23dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="592dp"
+        android:layout_marginEnd="58dp"
+        android:layout_marginBottom="116dp"
+        android:max="0"
+        android:progress="0"
+        android:progressTint="@color/purple_700"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

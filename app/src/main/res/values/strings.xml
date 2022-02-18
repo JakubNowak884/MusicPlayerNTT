@@ -3,4 +3,6 @@
     <string name="connected">Connected</string>
     <string name="disconnected">Disconnected</string>
     <string name="connecting">Status: connecting...</string>
+    <string name="youtube_video">YouTube video</string>
+    <string name="api_key">AIzaSyBXneFQ6WeXoUW_YFvvw_ohNf6yFUQv4bI</string>
 </resources>

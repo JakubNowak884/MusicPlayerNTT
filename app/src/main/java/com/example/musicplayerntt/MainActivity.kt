@@ -1,6 +1,7 @@
 package com.example.musicplayerntt
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
@@ -8,7 +9,6 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.ContentValues.TAG
 import android.content.Context
-import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
@@ -17,6 +17,7 @@ import android.os.*
 import android.text.InputType
 import android.util.Log
 import android.widget.*
+import android.widget.SeekBar.OnSeekBarChangeListener
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -32,17 +33,17 @@ import java.util.*
 class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
 
     private var musicPlaying = false
-    private var m_Text = ""
+    private var youtubeUrl: String? = null
 
     private var songTitle: TextView? = null
     private var songLength: TextView? = null
-    private var songProgress: ProgressBar? = null
+    private var songProgress: SeekBar? = null
     private var deviceName: TextView? = null
     private var deviceStatus: TextView? = null
     private var bPlay: ImageButton? = null
 
     private var mediaPlayer: MediaPlayer? = null
-    private var songLengthThread: SongLengthThread? = null
+    private var songLengthThread: LengthThread? = null
 
     private var youtubeFragment: YouTubePlayerSupportFragment? = null
 
@@ -64,13 +65,16 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         setContentView(R.layout.activity_main)
 
         songTitle = findViewById(R.id.songTitle)
-        songProgress = findViewById(R.id.songProgressBar)
+        songProgress = findViewById(R.id.songSeekBar)
         songLength = findViewById(R.id.songLength)
         deviceName = findViewById(R.id.deviceName)
         deviceStatus = findViewById(R.id.deviceStatus)
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
+
+        songLengthThread = LengthThread()
+        songLengthThread!!.start()
 
         val bLoadFromFiles: Button = findViewById(R.id.b_load_files)
         bLoadFromFiles.setOnClickListener {
@@ -102,9 +106,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         bLoadFromYoutube.setOnClickListener {
             ActivityCompat.requestPermissions((this as Activity?)!!, arrayOf(Manifest.permission.INTERNET), 0)
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
-                @Suppress("CAST_NEVER_SUCCEEDS") //because YouTube SDK doesn't use Androidx.
-                youtubeFragment = supportFragmentManager.findFragmentById(R.id.youtube_fragment) as YouTubePlayerSupportFragment
-                youtubeFragment?.initialize("AIzaSyBXneFQ6WeXoUW_YFvvw_ohNf6yFUQv4bI", this)
+                showDialog()
             }
         }
 
@@ -146,6 +148,23 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
                     true
                 }
         }
+
+        songProgress?.setOnSeekBarChangeListener(object: OnSeekBarChangeListener {
+            override fun onStopTrackingTouch(seekBa: SeekBar) {
+
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+
+            }
+
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    mediaPlayer?.seekTo(progress * 1000)
+                    player?.seekToMillis(progress * 1000)
+                }
+            }
+        })
 
         /*
         Second most important piece of Code. GUI Handler
@@ -205,11 +224,12 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
 
                         songTitle?.text = name
 
-                        songLengthThread = SongLengthThread()
-                        songLengthThread!!.start()
+                        songLengthThread?.isRunning = false
 
                         player?.release()
                         player = null
+
+                        songLengthThread?.isRunning = true
                     }
                 }
 
@@ -238,106 +258,92 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
     override fun onInitializationSuccess(p0: YouTubePlayer.Provider?, p1: YouTubePlayer?, p2: Boolean) {
         if(p1 == null) return
         if (p2) {
-            p1.pause()
+            p1.play()
             player = p1
-            songTitle?.text = "No song chosen"
+            songTitle?.text = getString(R.string.youtube_video)
+            songLengthThread?.isRunning = false
+
+            mediaPlayer?.release()
             mediaPlayer = null
+
+            songLengthThread?.isRunning = true
         }
         else {
-            showdialog()
-            p1.cueVideo(m_Text)
-            p1.setPlayerStyle(YouTubePlayer.PlayerStyle.DEFAULT)
-            p1.pause()
+            p1.cueVideo(youtubeUrl)
+            p1.play()
             player = p1
-            songTitle?.text = "No song chosen"
+            songTitle?.text = getString(R.string.youtube_video)
+            songLengthThread?.isRunning = false
+
+            mediaPlayer?.release()
             mediaPlayer = null
+
+            songLengthThread?.isRunning = true
         }
     }
 
     override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {
-        var a = 5
+
     }
 
-    private fun showdialog(){
-        val builder: AlertDialog.Builder = android.app.AlertDialog.Builder(this)
-        builder.setTitle("Title")
+    private fun showDialog(){
+        val builder: AlertDialog.Builder = AlertDialog.Builder(this)
+        builder.setTitle("Youtube URL")
 
 // Set up the input
         val input = EditText(this)
 // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
-        input.setHint("Enter Text")
+        input.hint = "Enter URL"
         input.inputType = InputType.TYPE_CLASS_TEXT
         builder.setView(input)
 
 // Set up the buttons
-        builder.setPositiveButton("OK", DialogInterface.OnClickListener { dialog, which ->
+        builder.setPositiveButton("OK") { _, _ ->
             // Here you get get input text from the Edittext
-            m_Text = input.text.toString()
-        })
-        builder.setNegativeButton("Cancel", DialogInterface.OnClickListener { dialog, which -> dialog.cancel() })
+            val inputString = input.text.toString()
+            youtubeUrl = inputString.removePrefix("https://youtu.be/")
+            if (youtubeUrl == inputString) {
+                Toast.makeText(this, "Invalid URL", Toast.LENGTH_SHORT).show()
+            } else {
+                @Suppress("CAST_NEVER_SUCCEEDS") //because YouTube SDK doesn't use Androidx.
+                youtubeFragment = supportFragmentManager.findFragmentById(R.id.youtube_fragment) as YouTubePlayerSupportFragment
+                youtubeFragment?.initialize(getString(R.string.api_key), this)
+            }
+        }
+        builder.setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
 
         builder.show()
     }
 
-    private fun millisecondsToMinutes(totalMilliseconds: Int) : String {
-        val totalSeconds = totalMilliseconds / 1000
+    private fun secondsToMinutes(totalSeconds: Int) : String {
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
 
         return String.format("%02d:%02d", minutes, seconds)
     }
 
-    private inner class SongLengthThread : Thread() {
-        override fun run() {
-            while (true) {
-                val duration = mediaPlayer?.duration ?: 0
-                val position = mediaPlayer?.currentPosition ?: 0
-                songProgress?.max = duration
-                songProgress?.progress = position
-                val songLengthText = millisecondsToMinutes(position) + " - " + millisecondsToMinutes(duration)
-                songLength?.text = songLengthText
-            }
-        }
-    }
-
-    private inner class YoutubeThread() : Thread(),  YouTubePlayer.OnInitializedListener {
-        var youtubePlayer : YouTubePlayer? = null
-        var bool: Boolean = true
+    private inner class LengthThread : Thread() {
+        var isRunning = false
 
         override fun run() {
             while (true) {
-                if(youtubePlayer == null) return
-                if (bool) {
-                    try {
-                        sleep(1000)
-                    } catch (e: InterruptedException) {
-                        // Do something here if you need to
+                if (isRunning) {
+                    var duration = 0
+                    var position = 0
+                    if (player != null) {
+                        duration = player?.durationMillis?.div(1000) ?: 0
+                        position = player?.currentTimeMillis?.div(1000) ?: 0
                     }
-                    youtubePlayer?.seekToMillis(10000)
-                    youtubePlayer?.play()
-                }
-                else {
-                    youtubePlayer?.cueVideo("0GXjAMnv1zs")
-                    youtubePlayer?.setPlayerStyle(YouTubePlayer.PlayerStyle.DEFAULT)
-                    try {
-                        sleep(1000)
-                    } catch (e: InterruptedException) {
-                        // Do something here if you need to
+                    else if (mediaPlayer != null) {
+                        duration = mediaPlayer?.duration?.div(1000) ?: 0
+                        position = mediaPlayer?.currentPosition?.div(1000) ?: 0
                     }
-                    youtubePlayer?.seekToMillis(10000)
-                    youtubePlayer?.play()
+                    songProgress?.max = duration
+                    songProgress?.progress = position
+                    val songLengthText = secondsToMinutes(position) + " - " + secondsToMinutes(duration)
+                    songLength?.text = songLengthText
                 }
             }
-        }
-
-        override fun onInitializationSuccess(p0: YouTubePlayer.Provider?, p1: YouTubePlayer?, p2: Boolean) {
-            youtubePlayer = p1
-            bool = p2
-            run()
-        }
-
-        override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {
-            var a = 5
         }
     }
 
