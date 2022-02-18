@@ -1,7 +1,6 @@
 package com.example.musicplayerntt
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
@@ -43,7 +42,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
     private var bPlay: ImageButton? = null
 
     private var mediaPlayer: MediaPlayer? = null
-    private var songLengthThread: LengthThread? = null
+    private var songLengthThread: SongLengthThread? = null
 
     private var youtubeFragment: YouTubePlayerSupportFragment? = null
 
@@ -58,7 +57,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
     private var songRequestCode = 0
     private var bluetoothDeviceRequestCode = 1
 
-    private var player : YouTubePlayer? = null
+    private var youtubePlayer : YouTubePlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,7 +72,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
 
-        songLengthThread = LengthThread()
+        songLengthThread = SongLengthThread()
         songLengthThread!!.start()
 
         val bLoadFromFiles: Button = findViewById(R.id.b_load_files)
@@ -138,12 +137,12 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             musicPlaying =
                 if (musicPlaying) {
                     mediaPlayer?.pause()
-                    player?.pause()
+                    youtubePlayer?.pause()
                     bPlay?.setImageResource(R.drawable.play)
                     false
                 } else {
                     mediaPlayer?.start()
-                    player?.play()
+                    youtubePlayer?.play()
                     bPlay?.setImageResource(R.drawable.stop)
                     true
                 }
@@ -161,7 +160,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
                     mediaPlayer?.seekTo(progress * 1000)
-                    player?.seekToMillis(progress * 1000)
+                    youtubePlayer?.seekToMillis(progress * 1000)
                 }
             }
         })
@@ -182,13 +181,13 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
                         when (arduinoMsg.lowercase(Locale.getDefault())) {
                             "start" -> {
                                 mediaPlayer?.start()
-                                player?.play()
+                                youtubePlayer?.play()
                                 bPlay?.setImageResource(R.drawable.stop)
                                 musicPlaying = true
                             }
                             "stop" -> {
                                 mediaPlayer?.pause()
-                                player?.pause()
+                                youtubePlayer?.pause()
                                 bPlay?.setImageResource(R.drawable.play)
                                 musicPlaying = false
                             }
@@ -226,8 +225,8 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
 
                         songLengthThread?.isRunning = false
 
-                        player?.release()
-                        player = null
+                        youtubePlayer?.release()
+                        youtubePlayer = null
 
                         songLengthThread?.isRunning = true
                     }
@@ -259,7 +258,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         if(p1 == null) return
         if (p2) {
             p1.play()
-            player = p1
+            youtubePlayer = p1
             songTitle?.text = getString(R.string.youtube_video)
             songLengthThread?.isRunning = false
 
@@ -271,7 +270,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         else {
             p1.cueVideo(youtubeUrl)
             p1.play()
-            player = p1
+            youtubePlayer = p1
             songTitle?.text = getString(R.string.youtube_video)
             songLengthThread?.isRunning = false
 
@@ -305,8 +304,10 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             if (youtubeUrl == inputString) {
                 Toast.makeText(this, "Invalid URL", Toast.LENGTH_SHORT).show()
             } else {
-                @Suppress("CAST_NEVER_SUCCEEDS") //because YouTube SDK doesn't use Androidx.
+                //warning "This cast never succeed" appears because YouTubeAndroidPlayerApi doesn't support Androidx.
                 youtubeFragment = supportFragmentManager.findFragmentById(R.id.youtube_fragment) as YouTubePlayerSupportFragment
+                //error "Cannot access" appears because YouTubeAndroidPlayerApi doesn't support Androidx.
+                //but program still compiles correctly
                 youtubeFragment?.initialize(getString(R.string.api_key), this)
             }
         }
@@ -322,7 +323,7 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
         return String.format("%02d:%02d", minutes, seconds)
     }
 
-    private inner class LengthThread : Thread() {
+    private inner class SongLengthThread : Thread() {
         var isRunning = false
 
         override fun run() {
@@ -330,9 +331,9 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
                 if (isRunning) {
                     var duration = 0
                     var position = 0
-                    if (player != null) {
-                        duration = player?.durationMillis?.div(1000) ?: 0
-                        position = player?.currentTimeMillis?.div(1000) ?: 0
+                    if (youtubePlayer != null) {
+                        duration = youtubePlayer?.durationMillis?.div(1000) ?: 0
+                        position = youtubePlayer?.currentTimeMillis?.div(1000) ?: 0
                     }
                     else if (mediaPlayer != null) {
                         duration = mediaPlayer?.duration?.div(1000) ?: 0
