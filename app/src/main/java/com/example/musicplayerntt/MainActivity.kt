@@ -29,36 +29,113 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
 
+/**
+ * Starting acitivity of an application.
+ *
+ * User is able to:
+ * select bluetooth device to which he wants connect to,
+ * load video from youtube,
+ * load song from music directory,
+ * rewind a song with a seek bar,
+ * start/stop song.
+ * The following information is given to the user:
+ * name of a bluetooth device,
+ * status of connection of a bluetooth device,
+ * youtube video,
+ * name of a song loaded from music directory,
+ * length and current position of a song loaded from music directory or a youtube video.
+ */
 class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
-
+    /**
+     * Information if music is currently playing from song from files or youtube video.
+     */
     private var musicPlaying = false
+    /**
+     * URL to youtube video without "https://youtu.be/" part.
+     */
     private var youtubeUrl: String? = null
-
+    /**
+     * Title of the song or caption "Youtube video" in a view.
+     */
     private var songTitle: TextView? = null
+    /**
+     * Length and curernt position of a song from file or youtube video in a view.
+     */
     private var songLength: TextView? = null
+    /**
+     * Length and curernt position of a song from file or youtube video in a view as a seek bar.
+     */
     private var songProgress: SeekBar? = null
+    /**
+     * Name of a bluetooth device in a view.
+     */
     private var deviceName: TextView? = null
+    /**
+     * Status of connection of a bluetooth device in a view.
+     */
     private var deviceStatus: TextView? = null
+    /**
+     * Button with image able to stop or start music. Each action changes button image.
+     */
     private var bPlay: ImageButton? = null
-
+    /**
+     * Plays song from music directory.
+     */
     private var mediaPlayer: MediaPlayer? = null
+    /**
+     * Thread in which length, current position and seek bar of a song is uptated.
+     */
     private var songLengthThread: SongLengthThread? = null
-
+    /**
+     * Shows youtube video.
+     */
     private var youtubeFragment: YouTubePlayerSupportFragment? = null
-
-    private var handler: Handler? = null
-    private var mmSocket: BluetoothSocket? = null
-    private var connectedThread: ConnectedThread? = null
-    private var createConnectThread: CreateConnectThread? = null
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private val connectingStatus = 1 // used in bluetooth handler to identify message status
-    private val messageRead = 2 // used in bluetooth handler to identify message update
-
-    private var songRequestCode = 0
-    private var bluetoothDeviceRequestCode = 1
-
+     /**
+     * Plays and stops youtube video.
+     */
     private var youtubePlayer : YouTubePlayer? = null
-
+    /**
+     * Handler for receiving messages from bluetooth device.
+     */
+    private var handler: Handler? = null
+    /**
+     * Socket for bluetooth connection.
+     */
+    private var mmSocket: BluetoothSocket? = null
+    /**
+     * Thread receiving input from bluetooth device.
+     */
+    private var connectedThread: ConnectedThread? = null
+    /**
+     * Waits for bluetooth connection and creates connected thread.
+     */
+    private var createConnectionThread: CreateConnectionThread? = null
+    /**
+     * Adaped for bluetooth connection.
+     */
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    /**
+     * Identifies message status in a bluetooth handler.
+     */
+    private val connectingStatus = 1
+    /**
+     * Identifies message update in a bluetooth handler.
+     */
+    private val messageRead = 2
+    /**
+     * Information given to intent if ListActivity was opened by clicking "load song from files" button.
+     */
+    private val songRequestCode = 0
+    /**
+     * Information given to intent if ListActivity was opened by clicking "select device" button.
+     */
+    private val bluetoothDeviceRequestCode = 1
+    
+    /**
+     * Initializes listeners for controllers and starts (not running) SongLengthThread.
+     *
+     * @see onCreate.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -197,7 +274,14 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             }
         }
     }
-
+    /**
+     * If activity returns from list of songs initializes media player with chosen song and runs SongLengthThread.
+     * If activity returns from list of devices initializes connections with chosen device and starts CreateConnectionThread.
+     *
+     * @see onActivityResult
+     * @see SongLengthThread
+     * @see CreateConnectionThread
+     */
     override fun onActivityResult(requestCode: Int, resultCode: Int, intentData: Intent?) {
         super.onActivityResult(requestCode, resultCode, intentData)
 
@@ -248,12 +332,21 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             }
         }
     }
-
+    /**
+     * Cancels connection with a bluetooth device.
+     *
+     * @see onDestroy
+     */
     override fun onDestroy() {
         super.onDestroy()
         createConnectThread?.cancel()
     }
-
+    /**
+     * Loads youtube video from URL and runs SongLengthThread.
+     *
+     * @see onInitializationSuccess
+     * @see SongLengthThread
+     */
     override fun onInitializationSuccess(p0: YouTubePlayer.Provider?, p1: YouTubePlayer?, p2: Boolean) {
         if(p1 == null) return
         if (p2) {
@@ -280,23 +373,27 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             songLengthThread?.isRunning = true
         }
     }
-
-    override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {
-
-    }
-
+    /**
+     * @see onInitializationFailure
+     */
+    override fun onInitializationFailure(p0: YouTubePlayer.Provider?, p1: YouTubeInitializationResult) {}
+ /**
+     * Shows dialog to enter youtube URL.
+     *
+     * After clicking "Ok" button youtube URL is assigned to variable and then youtubeFragment is initialized.
+     */
     private fun showDialog(){
         val builder: AlertDialog.Builder = AlertDialog.Builder(this)
         builder.setTitle("Youtube URL")
 
-// Set up the input
+        // Set up the input
         val input = EditText(this)
-// Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+        // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
         input.hint = "Enter URL"
         input.inputType = InputType.TYPE_CLASS_TEXT
         builder.setView(input)
 
-// Set up the buttons
+        // Set up the buttons
         builder.setPositiveButton("OK") { _, _ ->
             // Here you get get input text from the Edittext
             val inputString = input.text.toString()
@@ -315,17 +412,34 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
 
         builder.show()
     }
-
+    /**
+     * Converts seconds to minutes in format "00:00".
+     *
+     * @param totalSeconds seconds to convert
+     * @return minutes as string in format "00:00"
+     */
     private fun secondsToMinutes(totalSeconds: Int) : String {
         val minutes = totalSeconds / 60
         val seconds = totalSeconds % 60
 
         return String.format("%02d:%02d", minutes, seconds)
     }
-
+    /**
+     * Thread for changing song length text and seek bar.
+     * 
+     * @see Thread
+     */
     private inner class SongLengthThread : Thread() {
+        /**
+         * Information if threading is currently running.
+         */
         var isRunning = false
 
+        /**
+         * Updates song length text and seek bar depending whether youtube player or media player is active.
+         * 
+         * @see Run
+         */
         override fun run() {
             while (true) {
                 if (isRunning) {
@@ -347,8 +461,18 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             }
         }
     }
-
+    /**
+     * Thread for waiting for connection to bluetooth device.
+     * 
+     * @constructor Creates connection with a bluetooth device.
+     * @see Thread
+     */
     private inner class CreateConnectThread(bluetoothAdapter: BluetoothAdapter, address: String?) : Thread() {
+        /**
+        * Tries to connect to a bluetooth device.
+        * 
+        * @see run
+        */
         override fun run() {
             ActivityCompat.requestPermissions((this@MainActivity as Activity?)!!, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 0)
             if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
@@ -375,8 +499,9 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
                 connectedThread!!.run()
             }
         }
-
-        // Closes the client socket and causes the thread to finish.
+        /**
+         * Closes connection with a bluetooth device.
+         */
         fun cancel() {
             try {
                 mmSocket?.close()
@@ -412,10 +537,23 @@ class MainActivity : AppCompatActivity(), YouTubePlayer.OnInitializedListener {
             }
         }
     }
-
+    /**
+     * Thread for receiving input from a bluetooth device and holding connection.
+     * 
+     * @constructor Creates input stream.
+     * @see Thread
+     */
     private inner class ConnectedThread(mmSocket: BluetoothSocket) : Thread() {
+        /**
+         * Input stream from bluetooth device.
+         */
         private val mmInStream: InputStream?
         private val mmOutStream: OutputStream?
+        /**
+         * Receives messages from a bluetooth device.
+         * 
+         * @see Run
+         */
         override fun run() {
             val buffer = ByteArray(1024) // buffer store for the stream
             var bytes = 0 // bytes returned from read()

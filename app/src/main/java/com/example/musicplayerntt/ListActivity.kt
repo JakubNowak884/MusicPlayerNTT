@@ -10,7 +10,8 @@ import androidx.recyclerview.widget.RecyclerView
 /**
  * Activity to choose name and address from list of object names.
  *
- * Activity is showed after bLoad or bSelect button in MainActivity is clicked.
+ * Activity is showed after bLoad or bSelect button in MainActivity is clicked. 
+ * List of objects is showed to the user. After picking one object user is redirected to the MainActivity.
  */
 class ListActivity : AppCompatActivity()  {
 
